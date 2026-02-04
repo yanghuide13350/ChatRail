@@ -1,6 +1,6 @@
 # ChatRail
 
-**下载扩展请点击右侧 Releases，选择最新版本里的 ChatRail.zip。
+**下载扩展请点击右侧 Releases，选择最新版本里的 ChatRail.zip**
 
 **ChatRail · AI 对话导航侧栏**
 
