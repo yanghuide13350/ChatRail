@@ -1,0 +1,5 @@
+{
+  "name": "ChatRail",
+  "description": "A DeepSeek-style chat rail that adds a sleek vertical navigator to AI chat platforms for quick message jumping and tracking.",
+  "requestFramePermissions": []
+}

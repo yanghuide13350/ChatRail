@@ -1,0 +1,32 @@
+
+{
+  "manifest_version": 3,
+  "name": "ChatRail",
+  "version": "1.4.0",
+  "description": "DeepSeek 风格的 AI 对话导航侧栏，适配 ChatGPT、Claude、Gemini、豆包、Grok、元宝等平台",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://chat.deepseek.com/*",
+    "https://www.doubao.com/*",
+    "https://grok.com/*",
+    "https://yuanbao.tencent.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*",
+        "https://www.doubao.com/*",
+        "https://grok.com/*",
+        "https://yuanbao.tencent.com/*"
+      ],
+      "js": ["index.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
