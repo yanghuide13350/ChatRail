@@ -5,6 +5,7 @@
   window.__AI_NAV_INSTANCE__ = VERSION;
 
   const HEADER_OFFSET = 85;
+  const SCROLL_DURATION_MS = 520;
 
   const CSS_STYLE = `
     :host { all: initial; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
@@ -160,6 +161,76 @@
     navPanel.addEventListener('mouseenter', open);
     navPanel.addEventListener('mouseleave', close);
 
+    const getScrollTop = (container) => {
+      if (container === window) {
+        return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      }
+      return container.scrollTop;
+    };
+
+    const getMaxScrollTop = (container) => {
+      if (container === window) {
+        const doc = document.documentElement;
+        return Math.max(0, doc.scrollHeight - window.innerHeight);
+      }
+      return Math.max(0, container.scrollHeight - container.clientHeight);
+    };
+
+    const setScrollTop = (container, value) => {
+      if (container === window) {
+        window.scrollTo(0, value);
+      } else {
+        container.scrollTop = value;
+      }
+    };
+
+    const easeInOutCubic = (t) => (
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    );
+
+    const smoothScrollTo = (container, target) => {
+      const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReducedMotion) {
+        setScrollTop(container, target);
+        return;
+      }
+      const start = getScrollTop(container);
+      const change = target - start;
+      if (Math.abs(change) < 1) {
+        setScrollTop(container, target);
+        return;
+      }
+      let startTime = null;
+      const step = (timestamp) => {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const t = Math.min(elapsed / SCROLL_DURATION_MS, 1);
+        const eased = easeInOutCubic(t);
+        setScrollTop(container, start + change * eased);
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+
+    const isScrollable = (el) => {
+      if (!el || el === window) return true;
+      return el.scrollHeight > el.clientHeight + 1;
+    };
+
+    const getScrollContainer = (el) => {
+      if (!el) return window;
+      let parent = el.parentElement;
+      while (parent && parent !== document.body && parent !== document.documentElement) {
+        const style = window.getComputedStyle(parent);
+        const overflowY = style.overflowY;
+        if ((overflowY === 'auto' || overflowY === 'scroll') && isScrollable(parent)) {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      return window;
+    };
+
     root.querySelectorAll('.nav-item').forEach(item => {
       item.onclick = (e) => {
         e.stopPropagation();
@@ -168,11 +239,14 @@
         updateUI(idx);
         if (lockTimer) clearTimeout(lockTimer);
         lockTimer = setTimeout(() => { isManualLock = false; }, 1500);
-        nodes[idx].el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setTimeout(() => {
-          const sc = document.querySelector(config.scroll) || window;
-          (sc === window ? window : sc).scrollBy(0, -HEADER_OFFSET);
-        }, 500);
+        const preferred = document.querySelector(config.scroll);
+        const sc = (preferred && isScrollable(preferred)) ? preferred : getScrollContainer(nodes[idx].el);
+        const nodeRect = nodes[idx].el.getBoundingClientRect();
+        const containerTop = sc === window ? 0 : sc.getBoundingClientRect().top;
+        const current = getScrollTop(sc);
+        const rawTarget = current + (nodeRect.top - containerTop) - HEADER_OFFSET;
+        const target = Math.min(Math.max(0, rawTarget), getMaxScrollTop(sc));
+        smoothScrollTo(sc, target);
       };
     });
     updateUI(activeIndex);
