@@ -106,21 +106,51 @@
   const scan = () => {
     const allElements = Array.from(document.querySelectorAll(config.selector));
     const elements = allElements.filter((el, i, arr) => !arr.some((other, j) => i !== j && other.contains(el)));
-    
+
+    const shouldSkipNode = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (['BUTTON', 'SVG', 'SCRIPT', 'STYLE', 'IMG', 'PICTURE', 'CANVAS', 'VIDEO', 'AUDIO'].includes(tag)) return true;
+      return Boolean(el.closest('[data-testid*="attachment"], [data-testid*="file"], [data-testid*="upload"], [data-testid*="image"], [class*="attachment"], [class*="file"], [class*="upload"], [class*="image"], [aria-label*="attachment"], [aria-label*="file"], [aria-label*="image"], [aria-label*="图片"], [aria-label*="附件"]'));
+    };
+
+    const stripAttachmentNames = (text) => text
+      .split(/\s+/)
+      .filter(part => part &&
+        !/\.(png|jpe?g|gif|webp|svg|bmp|heic|heif|pdf|docx?|pptx?|xlsx?|zip|rar|7z|ts|tsx|js|jsx|json|txt|md|log)$/i.test(part) &&
+        !/^(?:image\d*|图片)$/i.test(part) &&
+        !/^(?:ts|tsx|js|jsx|json|md|txt|pdf|doc|docx|ppt|pptx|xls|xlsx|zip|rar|7z)$/i.test(part)
+      )
+      .join(' ');
+
     const newNodes = elements.map((el, i) => {
       const textEl = config.textSelector ? el.querySelector(config.textSelector) : null;
-      let raw = (textEl ? textEl.innerText : el.innerText).trim();
-      
-      // 增强文本获取 fallback
-      if (!raw) {
-        raw = Array.from(el.childNodes)
-          .filter(n => n.nodeType === 3)
-          .map(n => n.textContent).join(' ').trim();
+
+      // 深度遍历文本节点，跳过附件/图片容器
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      const textParts = [];
+      let current;
+      while (current = walker.nextNode()) {
+        const parent = current.parentElement;
+        if (shouldSkipNode(parent)) continue;
+        const t = current.textContent && current.textContent.trim();
+        if (t) textParts.push(t);
       }
 
-      const cleanText = raw.replace(/^(你说|You|User|Me)[:：\s]*/i, '').replace(/\n/g, ' ');
-      return { el, text: cleanText.slice(0, 42) || `节点 ${i + 1}` };
-    });
+      let raw = textParts.join(' ').trim();
+      if (!raw && textEl) raw = (textEl.textContent || textEl.innerText || '').trim();
+      if (!raw) raw = (el.innerText || '').trim();
+
+      let cleanText = stripAttachmentNames(raw)
+        .replace(/^(?:你说|你写道|你发的|User|You|Me)(?:\s+(?:said|说|写道|发的))?[：:\-\s]*/i, '')
+        .replace(/^said[：:\-\s]*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (!cleanText) return null;
+
+      return { el, text: cleanText.slice(0, 42) };
+    }).filter(Boolean);
 
     if (newNodes.length !== nodes.length || (nodes.length > 0 && newNodes[newNodes.length-1].text !== nodes[nodes.length-1].text)) {
       nodes = newNodes;
