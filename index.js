@@ -9,18 +9,22 @@
   const CSS_STYLE = `
     :host { all: initial; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
     .navigator-root {
-      position: fixed; right: 0; top: 0; bottom: 0; width: 50px;
+      position: fixed; right: 0; top: 0; bottom: 0;
       z-index: 2147483647; display: flex; flex-direction: column;
       align-items: flex-end; justify-content: center; pointer-events: none;
       transition: opacity 0.3s ease;
     }
+    .hot-zone {
+      position: absolute; right: 0; top: 200px; bottom: 200px; width: 48px;
+      pointer-events: auto;
+    }
     .nav-panel {
       pointer-events: auto; margin-right: 12px; display: flex; flex-direction: column;
       align-items: flex-end; transition: all 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-      border-radius: 24px; background: transparent; padding: 12px 6px; width: 28px;
+      border-radius: 24px; background: transparent; padding: 12px 6px; width: 8px;
       max-height: 85vh; overflow: hidden;
     }
-    .navigator-root:hover .nav-panel {
+    .navigator-root.open .nav-panel {
       width: 350px; padding: 24px 18px; background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(35px) saturate(180%); border: 1px solid rgba(0,0,0,0.06);
       box-shadow: -15px 0 60px rgba(0,0,0,0.12);
@@ -41,7 +45,7 @@
       overflow: hidden; text-overflow: ellipsis; text-align: left;
       opacity: 0; transform: translateX(18px); transition: all 0.35s cubic-bezier(0.2, 0, 0, 1);
     }
-    .navigator-root:hover .nav-text { opacity: 1; transform: translateX(0); }
+    .navigator-root.open .nav-text { opacity: 1; transform: translateX(0); }
     .nav-item.active .nav-text { color: #4D6BFE; font-weight: 700; }
     .nav-dash {
       width: 14px; height: 2.5px; background: rgba(0,0,0,0.15);
@@ -52,12 +56,12 @@
       box-shadow: 0 0 15px rgba(77, 107, 254, 0.6);
     }
     .nav-footer { margin-top: 24px; margin-right: 14px; display: flex; flex-direction: column; align-items: center; line-height: 1; opacity: 0; transition: opacity 0.3s; }
-    .navigator-root:hover .nav-footer { opacity: 1; }
+    .navigator-root.open .nav-footer { opacity: 1; }
     .nav-footer .active-num { color: #4D6BFE; font-weight: 900; font-size: 22px; }
     .nav-footer .divider { color: #ddd; font-size: 14px; margin: -2px 0; transform: scaleY(0.5); }
     .nav-footer .total-num { color: #999; font-size: 13px; font-weight: 600; }
     @media (prefers-color-scheme: dark) {
-      .navigator-root:hover .nav-panel { background: rgba(30, 30, 32, 0.98); border-color: rgba(255,255,255,0.08); }
+      .navigator-root.open .nav-panel { background: rgba(30, 30, 32, 0.98); border-color: rgba(255,255,255,0.08); }
       .nav-text { color: #bbb; } .nav-dash { background: rgba(255,255,255,0.22); }
     }
   `;
@@ -136,9 +140,10 @@
   const render = () => {
     if (nodes.length === 0) { root.style.opacity = '0'; return; }
     root.style.opacity = '1';
-    root.style.pointerEvents = 'auto';
+    root.style.pointerEvents = 'none';
 
     root.innerHTML = `
+      <div class="hot-zone" aria-hidden="true"></div>
       <div class="nav-panel">
         <div class="nav-list">
           ${nodes.map((n, i) => `<div class="nav-item" data-index="${i}" title="${n.text}"><div class="nav-text">${n.text}</div><div class="nav-dash"></div></div>`).join('')}
@@ -146,6 +151,15 @@
         <div class="nav-footer"></div>
       </div>
     `;
+    const hotZone = root.querySelector('.hot-zone');
+    const navPanel = root.querySelector('.nav-panel');
+    const open = () => root.classList.add('open');
+    const close = (e) => { if (!root.contains(e.relatedTarget)) root.classList.remove('open'); };
+    hotZone.addEventListener('mouseenter', open);
+    hotZone.addEventListener('mouseleave', close);
+    navPanel.addEventListener('mouseenter', open);
+    navPanel.addEventListener('mouseleave', close);
+
     root.querySelectorAll('.nav-item').forEach(item => {
       item.onclick = (e) => {
         e.stopPropagation();
