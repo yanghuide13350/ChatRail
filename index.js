@@ -25,6 +25,9 @@
       border-radius: 24px; background: transparent; padding: 12px 6px; width: 8px;
       max-height: 85vh; overflow: hidden;
     }
+    .navigator-root:not(.open) .nav-panel {
+      width: 28px; padding: 8px 0;
+    }
     .navigator-root.open .nav-panel {
       width: 350px; padding: 24px 18px; background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(35px) saturate(180%); border: 1px solid rgba(0,0,0,0.06);
@@ -49,12 +52,12 @@
     .navigator-root.open .nav-text { opacity: 1; transform: translateX(0); }
     .nav-item.active .nav-text { color: #4D6BFE; font-weight: 700; }
     .nav-dash {
-      width: 14px; height: 2.5px; background: rgba(0,0,0,0.15);
-      border-radius: 2px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); flex-shrink: 0;
+      width: 16px; height: 2.5px; background: rgba(0,0,0,0.18);
+      border-radius: 999px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); flex-shrink: 0;
     }
     .nav-item.active .nav-dash {
-      width: 26px; height: 4.5px; background: #4D6BFE;
-      box-shadow: 0 0 15px rgba(77, 107, 254, 0.6);
+      width: 22px; height: 4px; background: #4D6BFE;
+      box-shadow: 0 0 12px rgba(77, 107, 254, 0.55);
     }
     .nav-footer { margin-top: 24px; margin-right: 14px; display: flex; flex-direction: column; align-items: center; line-height: 1; opacity: 0; transition: opacity 0.3s; }
     .navigator-root.open .nav-footer { opacity: 1; }
@@ -69,10 +72,23 @@
 
   const PLATFORMS = [
     { name: 'ChatGPT', host: 'chatgpt.com', selector: 'article[data-turn="user"]', textSelector: '.whitespace-pre-wrap', scroll: 'main' },
-    { name: 'Claude', host: 'claude.ai', selector: '[data-testid="user-message"]', scroll: '.overflow-y-auto' },
+    { 
+      name: 'Claude', 
+      host: 'claude.ai', 
+      selector: '[data-testid="user-message"]', 
+      // 新版 Claude 主区 main + conversation-pane，旧版仍是 .overflow-y-auto，择优取第一个可滚动的
+      scroll: '[data-testid="conversation-pane"], [data-testid*="scrollable"], main, .overflow-y-auto, [class*="overflow-y-auto"], [class*="scroll-container"], [class*="ScrollContainer"]' 
+    },
     { name: 'Gemini', host: 'gemini.google.com', selector: 'user-query, [data-test-id="user-query"]', scroll: '.chat-history' },
     { name: 'DeepSeek', host: 'deepseek.com', selector: '.ds-markdown--user', scroll: 'main' },
-    { name: 'Doubao', host: 'doubao.com', selector: '[data-testid="union_message"]:has([data-testid="send_message"])', textSelector: '[data-testid="message_text_content"]', scroll: '.simplebar-content-wrapper' },
+    { 
+      name: 'Doubao', 
+      host: 'doubao.com', 
+      selector: '[data-testid="union_message"]:has([data-testid="send_message"])', 
+      textSelector: '[data-testid="message_text_content"]', 
+      // Doubao 新版常见滚动容器：message-list / scroll_view / scroll-view
+      scroll: '[data-testid=\"message-list\"], [data-testid=\"scroll_view\"], .simplebar-content-wrapper, .simplebar-content, [class*=\"scroll-view\"], [class*=\"scrollable\"], [class*=\"scroll-content\"], [class*=\"chat-scroll\"], main, body' 
+    },
     { name: 'Grok', host: 'grok.com', selector: 'div[id^="response-"].items-end', textSelector: '.response-content-markdown', scroll: 'main' },
     { name: 'Yuanbao', host: 'yuanbao.tencent.com', selector: '.agent-chat__list__item--human', textSelector: '.hyc-content-text', scroll: '.agent-chat__list' }
   ];
@@ -92,8 +108,9 @@
 
   let nodes = [], activeIndex = -1, isManualLock = false, lockTimer = null, io = null;
 
-  const updateUI = (idx) => {
-    if (idx === activeIndex || idx < 0) return;
+  const updateUI = (idx, force = false) => {
+    if (idx < 0) return;
+    if (!force && idx === activeIndex) return;
     activeIndex = idx;
     root.querySelectorAll('.nav-item').forEach((item, i) => item.classList.toggle('active', i === activeIndex));
     const footer = shadow.querySelector('.nav-footer');
@@ -242,23 +259,101 @@
       requestAnimationFrame(step);
     };
 
+    const isDoubao = config && config.name === 'Doubao';
+
+    const isKnownDoubaoScrollContainer = (el) => {
+      if (!el) return false;
+      const testid = (el.getAttribute && el.getAttribute('data-testid')) || '';
+      const cls = (el.className || '').toString();
+      if (testid.toLowerCase() === 'scroll_view' || testid.toLowerCase() === 'message-list') return true;
+      return cls.includes('scroll-view');
+    };
+
     const isScrollable = (el) => {
       if (!el || el === window) return true;
-      return el.scrollHeight > el.clientHeight + 1;
+      // Doubao 有些滚动容器 overflowY 不是 auto/scroll，仍需识别为滚动根
+      if (isDoubao && isKnownDoubaoScrollContainer(el)) return true;
+      const canScroll = el.scrollHeight - el.clientHeight > 1;
+      if (!canScroll) return false;
+      const style = window.getComputedStyle(el);
+      const overflowY = style.overflowY;
+      const allowsScroll = ['auto', 'scroll', 'overlay'].includes(overflowY);
+      if (allowsScroll) return true;
+      return false;
+    };
+
+    const isReverseScrollContainer = (el) => {
+      if (!el || el === window) return false;
+      const style = window.getComputedStyle(el);
+      const flexDir = (style.flexDirection || '').toLowerCase();
+      if (flexDir.includes('reverse')) return true;
+      const cls = (el.className || '').toString().toLowerCase();
+      return cls.includes('reverse');
     };
 
     const getScrollContainer = (el) => {
       if (!el) return window;
       let parent = el.parentElement;
       while (parent && parent !== document.body && parent !== document.documentElement) {
-        const style = window.getComputedStyle(parent);
-        const overflowY = style.overflowY;
-        if ((overflowY === 'auto' || overflowY === 'scroll') && isScrollable(parent)) {
-          return parent;
-        }
+        if (isScrollable(parent)) return parent;
         parent = parent.parentElement;
       }
       return window;
+    };
+
+    const isNavigationLike = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (['NAV', 'ASIDE'].includes(tag)) return true;
+      const role = el.getAttribute('role');
+      if (role && role.toLowerCase().includes('navigation')) return true;
+      const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+      if (aria.includes('sidebar') || aria.includes('nav')) return true;
+      const testid = (el.getAttribute('data-testid') || '').toLowerCase();
+      if (testid.includes('sidebar') || testid.includes('nav')) return true;
+      return false;
+    };
+
+    const isInsideNavigation = (el) => {
+      let p = el;
+      while (p && p !== document.body) {
+        if (isNavigationLike(p)) return true;
+        p = p.parentElement;
+      }
+      return false;
+    };
+
+    const findPreferredScroll = (target) => {
+      if (!config.scroll) return null;
+      const selectors = config.scroll.split(',').map(s => s.trim()).filter(Boolean);
+      for (const sel of selectors) {
+        const candidates = Array.from(document.querySelectorAll(sel))
+          .filter(isScrollable)
+          .filter(c => !isInsideNavigation(c));
+
+        // 1) 优先选择既可滚动又包含目标节点的容器
+        const containing = candidates.find(c => c.contains(target));
+        if (containing) return containing;
+
+        if (isDoubao) continue;
+
+        // 2) 选择与目标区域有水平重叠且非导航侧栏的容器
+        const targetRect = target.getBoundingClientRect();
+        const overlapping = candidates.find(c => {
+          const rect = c.getBoundingClientRect();
+          const horizontalOverlap = rect.right > targetRect.left && rect.left < targetRect.right;
+          return horizontalOverlap && !isNavigationLike(c);
+        });
+        if (overlapping) return overlapping;
+
+        // 3) 退而求其次：第一个非导航、可滚动的候选
+        const nonNav = candidates.find(c => !isNavigationLike(c));
+        if (nonNav) return nonNav;
+
+        // 4) 最后兜底：任意可滚动候选
+        if (candidates.length > 0) return candidates[0];
+      }
+      return null;
     };
 
     root.querySelectorAll('.nav-item').forEach(item => {
@@ -269,17 +364,49 @@
         updateUI(idx);
         if (lockTimer) clearTimeout(lockTimer);
         lockTimer = setTimeout(() => { isManualLock = false; }, 1500);
-        const preferred = document.querySelector(config.scroll);
-        const sc = (preferred && isScrollable(preferred)) ? preferred : getScrollContainer(nodes[idx].el);
-        const nodeRect = nodes[idx].el.getBoundingClientRect();
-        const containerTop = sc === window ? 0 : sc.getBoundingClientRect().top;
-        const current = getScrollTop(sc);
-        const rawTarget = current + (nodeRect.top - containerTop) - HEADER_OFFSET;
-        const target = Math.min(Math.max(0, rawTarget), getMaxScrollTop(sc));
-        smoothScrollTo(sc, target);
+        const headerOffset = isDoubao ? 0 : HEADER_OFFSET;
+
+        const scrollToNodeIn = (container) => {
+          const nodeRect = nodes[idx].el.getBoundingClientRect();
+          const containerTop = container === window ? 0 : container.getBoundingClientRect().top;
+          const current = getScrollTop(container);
+          const delta = nodeRect.top - containerTop;
+          const shouldReverse = isDoubao && isReverseScrollContainer(container);
+          const rawTarget = shouldReverse ? (current - delta - headerOffset) : (current + delta - headerOffset);
+          const target = Math.min(Math.max(0, rawTarget), getMaxScrollTop(container));
+          smoothScrollTo(container, target);
+          return target;
+        };
+
+        if (isDoubao) {
+          const preferred = findPreferredScroll(nodes[idx].el);
+          const container = preferred
+            || getScrollContainer(nodes[idx].el)
+            || document.querySelector('[data-testid="message-list"]')
+            || document.querySelector('[data-testid="scroll_view"]')
+            || window;
+
+          const start = getScrollTop(container);
+          nodes[idx].el.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
+          const end = getScrollTop(container);
+
+          if (end !== start) {
+            setScrollTop(container, start);
+            smoothScrollTo(container, end);
+          } else {
+            const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const behavior = prefersReducedMotion ? 'auto' : 'smooth';
+            nodes[idx].el.scrollIntoView({ behavior, block: 'start', inline: 'nearest' });
+          }
+          return;
+        }
+
+        const preferred = findPreferredScroll(nodes[idx].el);
+        const sc = preferred || getScrollContainer(nodes[idx].el);
+        scrollToNodeIn(sc);
       };
     });
-    updateUI(activeIndex);
+    updateUI(activeIndex, true);
   };
 
   window.addEventListener('scrollend', () => { isManualLock = false; scan(); });
