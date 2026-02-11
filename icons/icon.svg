@@ -1,0 +1,21 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#F4F6F2"/>
+
+  <!-- left bar -->
+  <rect x="150" y="160" width="200" height="704" rx="100" fill="#67B279"/>
+
+  <!-- branches -->
+  <path d="M350 420 Q500 300 650 320" stroke="#67B279" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M350 512 L650 512" stroke="#67B279" stroke-width="56" stroke-linecap="round"/>
+  <path d="M350 604 Q500 720 650 704" stroke="#67B279" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- bubbles (outline) -->
+  <rect x="680" y="230" width="240" height="160" rx="60" stroke="#D7E3DA" stroke-width="40"/>
+  <path d="M760 390 L700 430 L780 430" stroke="#D7E3DA" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="640" y="420" width="300" height="200" rx="70" stroke="#D7E3DA" stroke-width="40"/>
+  <path d="M740 620 L680 660 L770 660" stroke="#D7E3DA" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="700" y="690" width="220" height="140" rx="60" stroke="#D7E3DA" stroke-width="40"/>
+  <path d="M760 810 L710 844 L780 844" stroke="#D7E3DA" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
